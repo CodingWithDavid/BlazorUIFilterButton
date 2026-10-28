@@ -1,0 +1,39 @@
+﻿<div class="brand-row navbar-dark">
+    <a class="brand" href="">
+        <span class="brand-mark" aria-hidden="true">FB</span>
+        <span class="brand-name">
+            Filter Buttons
+            <span class="brand-caption">Component workspace</span>
+        </span>
+    </a>
+    <button type="button"
+            title="Navigation menu"
+            class="navbar-toggler"
+            aria-controls="main-navigation"
+            aria-expanded="@((!collapseNavMenu).ToString().ToLowerInvariant())"
+            @onclick="ToggleNavMenu">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+</div>
+
+<div id="main-navigation" class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <p class="nav-label">Workspace</p>
+    <nav class="nav flex-column" aria-label="Main navigation">
+        <div class="nav-item">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+}

@@ -1,0 +1,244 @@
+﻿@page "/"
+
+@using FilterButtons.Components
+
+<PageTitle>Approval queue | ActiveFilterBar</PageTitle>
+
+<div class="approval-demo">
+    <header class="demo-header">
+        <div>
+            <p class="eyebrow">ActiveFilterBar demo</p>
+            <h1>Approval queue</h1>
+            <p class="intro">See exactly what is filtering your queue. Remove a chip to broaden the results.</p>
+        </div>
+        <button type="button"
+                class="reset-button"
+                disabled="@_loading"
+                @onclick="ResetFiltersAsync">
+            Reset sample filters
+        </button>
+    </header>
+
+    <section class="filter-builder" aria-labelledby="filter-builder-heading">
+        <div>
+            <h2 id="filter-builder-heading">Add a filter</h2>
+            <p>Select a field to add to the approval queue.</p>
+        </div>
+        <div class="filter-builder-controls">
+            <label for="filter-field">Filter field</label>
+            <select id="filter-field"
+                    @bind="_selectedFieldId"
+                    disabled="@(_loading || AvailableFields.Count == 0)">
+                <option value="">Choose a field...</option>
+                @foreach (var field in AvailableFields)
+                {
+                    <option value="@field.Id">@field.Label</option>
+                }
+            </select>
+            <button type="button"
+                    class="apply-button"
+                    disabled="@(_loading || string.IsNullOrWhiteSpace(_selectedFieldId) || AvailableFields.Count == 0)"
+                    @onclick="ApplyFilterAsync">
+                @if (_loading)
+                {
+                    <span class="button-spinner" aria-hidden="true"></span>
+                }
+                Apply
+            </button>
+        </div>
+        @if (AvailableFields.Count == 0)
+        {
+            <p class="filter-builder-status">All available fields are already being used.</p>
+        }
+    </section>
+
+    <ActiveFilterBar Filters="@_filters"
+                     Busy="@_loading"
+                     OnRemove="RemoveFilterAsync"
+                     OnClearAll="ClearFiltersAsync" />
+
+    <section class="results" aria-labelledby="results-heading" aria-busy="@_loading.ToString().ToLowerInvariant()">
+        <div class="results-header">
+            <h2 id="results-heading">Requests</h2>
+            <p class="results-count" role="status" aria-live="polite" aria-atomic="true">
+                @if (_loading)
+                {
+                    <span class="loading-dot" aria-hidden="true"></span>
+                    <span>Updating results...</span>
+                }
+                else
+                {
+                    <span>@_results.Count of @Requests.Count requests</span>
+                }
+            </p>
+        </div>
+
+        <div class="table-scroll" tabindex="0" role="region" aria-label="Approval requests table">
+            <table>
+                <caption class="visually-hidden">Sample approval requests matching all active filters.</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Request</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Region</th>
+                        <th scope="col">Owner</th>
+                        <th scope="col">Submitted</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var request in _results)
+                    {
+                        <tr @key="request.Id">
+                            <th scope="row">
+                                <span class="request-title">@request.Title</span>
+                                <span class="request-id">@request.Id</span>
+                            </th>
+                            <td><span class="status-badge @(request.Status == "Open" ? "status-open" : "status-approved")">@request.Status</span></td>
+                            <td>@request.Region</td>
+                            <td>@request.Owner</td>
+                            <td>@request.Submitted.ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (!_loading && _results.Count == 0)
+        {
+            <p class="no-results">No requests match these filters. Remove a filter or clear them all to see more requests.</p>
+        }
+    </section>
+
+    <aside class="demo-note" aria-labelledby="demo-note-heading">
+        <h2 id="demo-note-heading">Try it with your keyboard</h2>
+        <p>Use Tab to reach a chip's remove button, then Enter or Space to remove it.
+            Focus returns to the active filters, and the updated filter count is announced to screen readers.</p>
+        <p>This demo uses local sample data with a short simulated loading delay.
+            Reset sample filters to start again.</p>
+    </aside>
+</div>
+
+@code {
+    private const string StatusFilterId = "status-equals";
+    private const string RegionFilterId = "region-equals";
+    private const string OwnerFilterId = "owner-equals";
+
+    private static readonly IReadOnlyList<ApprovalRequest> Requests =
+    [
+        new("REQ-1041", "Field equipment purchase", "Open", "Southwest", "David", new(2026, 10, 26)),
+        new("REQ-1042", "Site visit travel", "Open", "Southwest", "David", new(2026, 10, 25)),
+        new("REQ-1043", "Office supply renewal", "Approved", "Southwest", "David", new(2026, 10, 24)),
+        new("REQ-1044", "Safety training enrollment", "Open", "Northwest", "David", new(2026, 10, 23)),
+        new("REQ-1045", "Software license renewal", "Approved", "Northeast", "David", new(2026, 10, 22)),
+        new("REQ-1046", "Warehouse maintenance", "Open", "Southwest", "Morgan", new(2026, 10, 21)),
+        new("REQ-1047", "Conference registration", "Open", "Southeast", "Jordan", new(2026, 10, 20)),
+        new("REQ-1048", "Team laptop replacement", "Approved", "Northwest", "Morgan", new(2026, 10, 19))
+    ];
+
+    private bool _loading;
+    private string? _selectedFieldId;
+    private List<ActiveFilterBar.FilterToken> _filters = CreateSampleFilters();
+    private List<ApprovalRequest> _results = [];
+    private static readonly IReadOnlyList<FilterOption> FilterOptions =
+    [
+        new(StatusFilterId, "Status", "Open"),
+        new(RegionFilterId, "Region", "Southwest"),
+        new(OwnerFilterId, "Owner", "David")
+    ];
+
+    private IReadOnlyList<FilterOption> AvailableFields =>
+        FilterOptions
+            .Where(option => _filters.All(filter => filter.Id != option.Id))
+            .ToList();
+
+    protected override void OnInitialized()
+    {
+        _results = QueryRequests();
+    }
+
+    private static List<ActiveFilterBar.FilterToken> CreateSampleFilters() =>
+    [
+        new(StatusFilterId, "Status", "Open"),
+        new(RegionFilterId, "Region", "Southwest"),
+        new(OwnerFilterId, "Owner", "David")
+    ];
+
+    private Task RemoveFilterAsync(ActiveFilterBar.FilterToken filter) =>
+        UpdateFiltersAsync(() => _filters.RemoveAll(item => item.Id == filter.Id));
+
+    private Task ClearFiltersAsync() =>
+        UpdateFiltersAsync(() =>
+        {
+            _filters.Clear();
+            _selectedFieldId = null;
+        });
+
+    private Task ResetFiltersAsync() =>
+        UpdateFiltersAsync(() =>
+        {
+            _filters = CreateSampleFilters();
+            _selectedFieldId = null;
+        });
+
+    private Task ApplyFilterAsync()
+    {
+        var option = AvailableFields.FirstOrDefault(field => field.Id == _selectedFieldId);
+
+        if (option is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return UpdateFiltersAsync(() =>
+        {
+            _filters.Add(new(option.Id, option.Label, option.Value));
+            _selectedFieldId = null;
+        });
+    }
+
+    private async Task UpdateFiltersAsync(Action update)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _loading = true;
+
+        try
+        {
+            update();
+            await ReloadResultsAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ReloadResultsAsync()
+    {
+        // Simulate a query so the demo exposes the component's busy state.
+        await Task.Delay(650);
+        _results = QueryRequests();
+    }
+
+    private List<ApprovalRequest> QueryRequests() =>
+        Requests.Where(request => _filters.All(filter => filter.Id switch
+        {
+            StatusFilterId => request.Status == filter.Value,
+            RegionFilterId => request.Region == filter.Value,
+            OwnerFilterId => request.Owner == filter.Value,
+            _ => throw new InvalidOperationException($"Unsupported filter: {filter.Id}")
+        })).ToList();
+
+    private sealed record ApprovalRequest(
+        string Id,
+        string Title,
+        string Status,
+        string Region,
+        string Owner,
+        DateOnly Submitted);
+
+    private sealed record FilterOption(string Id, string Label, string Value);
+}

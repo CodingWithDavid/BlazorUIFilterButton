@@ -1,0 +1,39 @@
+﻿@inherits LayoutComponentBase
+<div class="page @ThemeClass">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <header class="top-row">
+            <span class="workspace-label">Workspace</span>
+            <button type="button"
+                    class="theme-toggle"
+                    aria-label="@ThemeToggleLabel"
+                    aria-pressed="@(_isDarkMode ? "true" : "false")"
+                    @onclick="ToggleTheme">
+                <span class="theme-toggle-icon" aria-hidden="true">@(_isDarkMode ? "☀" : "☾")</span>
+                <span>@(_isDarkMode ? "Light mode" : "Dark mode")</span>
+            </button>
+        </header>
+
+        <article class="content">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    private bool _isDarkMode;
+
+    private string ThemeClass => _isDarkMode ? "dark-mode" : "light-mode";
+
+    private string ThemeToggleLabel => _isDarkMode
+        ? "Switch to light mode"
+        : "Switch to dark mode";
+
+    private void ToggleTheme()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+}

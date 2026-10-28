@@ -1,0 +1,133 @@
+<section class="filter-bar"
+         @ref="_region"
+         tabindex="-1"
+         aria-labelledby="@_headingId"
+         aria-busy="@IsBusy.ToString().ToLowerInvariant()">
+    <div class="filter-header">
+        <h2 id="@_headingId">@Heading</h2>
+
+        @if (Filters.Count > 1)
+        {
+            <button type="button"
+                    class="clear-button"
+                    disabled="@(IsBusy || !OnClearAll.HasDelegate)"
+                    @onclick="ClearAllAsync">
+                Clear all
+            </button>
+        }
+    </div>
+
+    @if (Filters.Count == 0)
+    {
+        <p class="empty-message">No filters are active.</p>
+    }
+    else
+    {
+        <ul class="filter-list">
+            @foreach (var filter in Filters)
+            {
+                <li @key="filter.Id" class="filter-chip">
+                    <span class="filter-name">@filter.Label:</span>
+                    <span class="filter-value" title="@filter.Value">@filter.Value</span>
+                    <button type="button"
+                            class="remove-button"
+                            disabled="@(IsBusy || !OnRemove.HasDelegate)"
+                            aria-label="@($"Remove {filter.Label}: {filter.Value}")"
+                            @onclick="() => RemoveAsync(filter)">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+
+    <span class="visually-hidden"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true">
+        @StatusMessage
+    </span>
+</section>
+
+@code {
+    [Parameter]
+    public string Heading { get; set; } = "Active filters";
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<FilterToken> Filters { get; set; } = [];
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    [Parameter]
+    public EventCallback<FilterToken> OnRemove { get; set; }
+
+    [Parameter]
+    public EventCallback OnClearAll { get; set; }
+
+    private readonly string _headingId = $"filters-{Guid.NewGuid():N}";
+    private ElementReference _region;
+    private bool _actionPending;
+    private bool _restoreFocus;
+    private bool IsBusy => Busy || _actionPending;
+
+    private string StatusMessage => Filters.Count switch
+    {
+        0 => "No filters are active.",
+        1 => "1 active filter.",
+        _ => $"{Filters.Count} active filters."
+    };
+
+    private async Task RemoveAsync(FilterToken filter)
+    {
+        if (IsBusy || !OnRemove.HasDelegate)
+        {
+            return;
+        }
+
+        _actionPending = true;
+
+        try
+        {
+            await OnRemove.InvokeAsync(filter);
+            _restoreFocus = true;
+        }
+        finally
+        {
+            _actionPending = false;
+        }
+    }
+
+    private async Task ClearAllAsync()
+    {
+        if (IsBusy || !OnClearAll.HasDelegate)
+        {
+            return;
+        }
+
+        _actionPending = true;
+
+        try
+        {
+            await OnClearAll.InvokeAsync();
+            _restoreFocus = true;
+        }
+        finally
+        {
+            _actionPending = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_restoreFocus || IsBusy)
+        {
+            return;
+        }
+
+        _restoreFocus = false;
+        await _region.FocusAsync(preventScroll: true);
+    }
+
+    public sealed record FilterToken(string Id, string Label, string Value);
+}
